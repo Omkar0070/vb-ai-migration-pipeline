@@ -1,0 +1,12 @@
+source_root: src/vb
+
+targets:
+  csharp:
+    root: cs_generated_v1
+    extension: .cs
+    namespace_prefix: Company.Project
+
+  java:
+    root: java_generated_v1
+    extension: .java
+    package_prefix: com.company.project
