@@ -1,0 +1,31 @@
+name: VB Conversion Pipeline
+
+on:
+  push:
+    branches:
+      - vb_banking_v1
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - run: pip install pyyaml
+
+      - name: Find VB Files
+        run: find src/vb -name "*.vb" > files.txt
+
+      - name: Convert Files Sequentially
+        run: |
+          while read f; do
+            python scripts/convert_file.py "$f"
+          done < files.txt
+
+      - name: Create PR
+        run: bash scripts/create_pr.sh
