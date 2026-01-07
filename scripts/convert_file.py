@@ -1,24 +1,44 @@
-import sys, yaml, os
+import sys
+import os
 from pathlib import Path
+from openai import OpenAI
 
-file = sys.argv[1]
+# Initialize client
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-with open("config/conversion.yaml") as f:
-    cfg = yaml.safe_load(f)
+if not os.environ.get("OPENAI_API_KEY"):
+    raise RuntimeError("OPENAI_API_KEY not set")
 
-with open(file) as f:
-    vb_code = f.read()
+vb_file = Path(sys.argv[1])
 
-# NOTE: Replace below with real OpenAI call
-if not vb_code.strip():
-    raise Exception("Empty VB file")
+# Load prompt template
+prompt_template = Path("prompts/vb-to-csharp-v1.md").read_text()
+vb_code = vb_file.read_text()
 
-target_dir = "cs_generated_v1"
-os.makedirs(target_dir, exist_ok=True)
+prompt = prompt_template.replace("{{VB_CODE}}", vb_code)
 
-output_file = Path(target_dir) / (Path(file).stem + ".cs")
-with open(output_file, "w") as f:
-    f.write("// Converted code placeholder")
+# Call OpenAI (NEW API)
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[
+        {"role": "user", "content": prompt}
+    ],
+    temperature=0.1,
+    max_tokens=2000
+)
 
-print(f"[OK] Converted {file}")
+csharp_code = response.choices[0].message.content.strip()
+
+# Sanity check
+if "class" not in csharp_code:
+    raise RuntimeError("Invalid C# output from OpenAI")
+
+# Write output
+out_root = Path("cs_generated_v1")
+relative = vb_file.relative_to("src/vb").with_suffix(".cs")
+out_file = out_root / relative
+out_file.parent.mkdir(parents=True, exist_ok=True)
+out_file.write_text(csharp_code)
+
+print(f"[OK] Converted {vb_file}")
 
