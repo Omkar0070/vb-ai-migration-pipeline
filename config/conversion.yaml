@@ -1,0 +1,19 @@
+target_language: csharp   # csharp or java
+
+llm:
+  provider: openai
+  model: gpt-4o
+  temperature: 0
+  max_tokens: 4000
+
+execution:
+  sequential: true
+  max_retries: 2
+
+compile:
+  csharp:
+    docker_image: mcr.microsoft.com/dotnet/sdk:8.0
+    command: dotnet build
+  java:
+    docker_image: maven:3.9-eclipse-temurin-17
+    command: mvn clean compile
