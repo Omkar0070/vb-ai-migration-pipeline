@@ -1,0 +1,23 @@
+name: Compile Generated Code
+
+on:
+  pull_request:
+    branches:
+      - cs_generated_v1
+      - java_generated_v1
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile with Docker
+        run: |
+          docker run --rm \
+            -v $PWD:/app \
+            -w /app \
+            mcr.microsoft.com/dotnet/sdk:8.0 \
+            dotnet build
+
