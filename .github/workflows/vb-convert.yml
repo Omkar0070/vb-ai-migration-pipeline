@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - vb_banking_v1
+
 permissions:
   contents: write
   pull-requests: write
@@ -11,29 +12,25 @@ permissions:
 jobs:
   convert:
     runs-on: ubuntu-latest
+
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       GH_TOKEN: ${{ github.token }}
 
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: 3.11
 
-      - run: pip install pyyaml openai
-
-      - name: Find VB Files
-        run: find src/vb -name "*.vb" > files.txt
-
-      - name: Convert Files Sequentially
+      - name: Install Dependencies
         run: |
-          while read f; do
-            python scripts/convert_file.py "$f"
-          done < files.txt
+          pip install --upgrade pip
+          pip install openai pyyaml
 
-      - name: Create PR
-        run: bash scripts/create_pr.sh
-
+      - name: Run VB → C# AI Pipeline
+        run: |
+          python scripts/vb_to_csharp_pipeline.py
