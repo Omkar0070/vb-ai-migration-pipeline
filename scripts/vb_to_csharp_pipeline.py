@@ -1,134 +1,98 @@
 import os
 import sys
-import subprocess
 from pathlib import Path
 from openai import OpenAI
 
 print("=== VB → C# PIPELINE STARTED ===")
 
-# -------------------------
-# CONFIG
-# -------------------------
-SRC_DIR = Path("src/vb")
-OUT_DIR = Path("cs_generated_v1")
-BASE_BRANCH = "vb_banking_v1"
-GEN_BRANCH = "cs_generated_v1"
-
-OUT_DIR.mkdir(exist_ok=True)
-
+# Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# -------------------------
-# UTIL FUNCTIONS
-# -------------------------
-def run(cmd):
-    print(f"Running: {cmd}")
-    result = subprocess.run(cmd, shell=True, text=True, capture_output=True)
-    if result.returncode != 0:
-        print(result.stderr)
-        sys.exit(result.returncode)
-    return result.stdout.strip()
+# Input file passed from CLI
+if len(sys.argv) < 2:
+    print("❌ No VB file provided")
+    sys.exit(1)
+
+SRC_FILE = Path(sys.argv[1])
+
+# Output directory
+OUT_DIR = Path("cs_generated_v1")
+OUT_DIR.mkdir(exist_ok=True)
+
+print("Processing:", SRC_FILE)
 
 
-# -------------------------
-# 1️⃣ CONVERT VB → C#
-# -------------------------
+# -----------------------------
+# Conversion Function
+# -----------------------------
 def convert_vb_to_csharp(vb_code: str) -> str:
     prompt = f"""
 Convert the following VB.NET code line by line into C#.
+
 Rules:
-- Use standard C# (.NET) syntax
+- Use standard C# syntax
 - Preserve logic exactly
-- Do not add comments
+- Do NOT include markdown formatting
+- Do NOT include ``` or language identifiers
 - Return ONLY valid C# code
 
 VB.NET code:
 {vb_code}
 """
+
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         temperature=0,
     )
-    return response.choices[0].message.content.strip()
+
+    code = response.choices[0].message.content.strip()
+
+    # 🧹 Remove Markdown code fences if present
+    if code.startswith("```"):
+        code = code.replace("```csharp", "").replace("```", "").strip()
+
+    return code
 
 
-print("Scanning VB source folder...")
-vb_files = list(SRC_DIR.rglob("*.vb"))
+# -----------------------------
+# Validation Function
+# -----------------------------
+def validate_csharp_file(file_path: Path):
+    if not file_path.exists() or file_path.stat().st_size == 0:
+        print("❌ Validation failed: file missing or empty")
+        sys.exit(1)
 
-if not vb_files:
-    print("❌ No VB files found. Exiting.")
-    sys.exit(1)
+    content = file_path.read_text(encoding="utf-8")
 
-print("Found VB files:", vb_files)
+    if "```" in content:
+        print("❌ Validation failed: markdown formatting found")
+        sys.exit(1)
 
-generated_files = []
+    print("✅ Validation passed for", file_path.name)
 
-for vb_file in vb_files:
-    print(f"Processing: {vb_file}")
 
-    vb_code = vb_file.read_text(encoding="utf-8")
+# -----------------------------
+# Main Pipeline
+# -----------------------------
+try:
+    # Read VB file
+    vb_code = SRC_FILE.read_text(encoding="utf-8")
+
+    # Convert to C#
     csharp_code = convert_vb_to_csharp(vb_code)
 
-    output_file = OUT_DIR / (vb_file.stem + ".cs")
+    # Write output
+    output_file = OUT_DIR / (SRC_FILE.stem + ".cs")
     output_file.write_text(csharp_code, encoding="utf-8")
 
-    print(f"Generated: {output_file}")
-    generated_files.append(output_file)
+    print("Generated:", output_file)
 
+    # Validate output
+    validate_csharp_file(output_file)
 
-# -------------------------
-# 2️⃣ VALIDATE OUTPUT
-# -------------------------
-print("\n=== VALIDATING GENERATED FILES ===")
+    print("=== PIPELINE SUCCESS ===")
 
-for file in generated_files:
-    if not file.exists() or file.stat().st_size == 0:
-        print(f"❌ Validation failed: {file}")
-        sys.exit(1)
-    else:
-        print(f"✅ Valid: {file}")
-
-print("All files validated successfully.")
-
-
-# -------------------------
-# 3️⃣ CREATE BRANCH + COMMIT + PR
-# -------------------------
-print("\n=== CREATING PULL REQUEST ===")
-
-# Configure git user (required for GitHub Actions)
-run('git config user.name "github-actions"')
-run('git config user.email "github-actions@github.com"')
-
-# Create or reset branch
-run(f"git checkout -B {GEN_BRANCH}")
-
-# Add only generated folder
-run(f"git add {OUT_DIR}")
-
-# Commit if there are changes
-commit_output = subprocess.run(
-    "git commit -m \"AI: Convert VB to C#\"",
-    shell=True, text=True, capture_output=True
-)
-
-if "nothing to commit" in commit_output.stdout.lower():
-    print("⚠️ No changes to commit. Skipping PR.")
-    sys.exit(0)
-
-print(commit_output.stdout)
-
-# Push branch
-run(f"git push origin {GEN_BRANCH} --force")
-
-# Create PR using GitHub CLI
-run(
-    f'gh pr create '
-    f'--base {BASE_BRANCH} '
-    f'--head {GEN_BRANCH} '
-    f'--title "AI VB → C# Conversion" '
-    f'--body "Automated VB to C# conversion using OpenAI pipeline."'
-)
-
-print("\n=== PIPELINE COMPLETED SUCCESSFULLY ===")
+except Exception as e:
+    print("❌ Pipeline failed:", str(e))
+    sys.exit(1)
