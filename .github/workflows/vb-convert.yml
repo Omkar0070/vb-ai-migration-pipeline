@@ -31,6 +31,15 @@ jobs:
           pip install --upgrade pip
           pip install openai pyyaml
 
+      - name: Find VB Files
+        run: |
+          find src/vb -name "*.vb" > files.txt
+          echo "VB files found:"
+          cat files.txt
+
       - name: Run VB → C# AI Pipeline
         run: |
-          python scripts/vb_to_csharp_pipeline.py
+          while read f; do
+            echo "Converting: $f"
+            python scripts/vb_to_csharp_pipeline.py "$f"
+          done < files.txt
