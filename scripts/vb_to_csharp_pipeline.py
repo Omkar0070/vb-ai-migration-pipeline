@@ -1,4 +1,4 @@
-import os
+ import os
 import sys
 from pathlib import Path
 from openai import OpenAI
@@ -8,7 +8,7 @@ print("=== VB → C# PIPELINE STARTED ===")
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Input file passed from CLI
+# Ensure file argument is provided
 if len(sys.argv) < 2:
     print("❌ No VB file provided")
     sys.exit(1)
@@ -48,7 +48,7 @@ VB.NET code:
 
     code = response.choices[0].message.content.strip()
 
-    # 🧹 Remove Markdown code fences if present
+    # 🧹 Remove Markdown code fences if model adds them
     if code.startswith("```"):
         code = code.replace("```csharp", "").replace("```", "").strip()
 
@@ -73,7 +73,7 @@ def validate_csharp_file(file_path: Path):
 
 
 # -----------------------------
-# Main Pipeline
+# Main Execution
 # -----------------------------
 try:
     # Read VB file
@@ -82,7 +82,7 @@ try:
     # Convert to C#
     csharp_code = convert_vb_to_csharp(vb_code)
 
-    # Write output
+    # Write output file
     output_file = OUT_DIR / (SRC_FILE.stem + ".cs")
     output_file.write_text(csharp_code, encoding="utf-8")
 
@@ -96,3 +96,4 @@ try:
 except Exception as e:
     print("❌ Pipeline failed:", str(e))
     sys.exit(1)
+    
