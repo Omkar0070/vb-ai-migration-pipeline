@@ -1,30 +1,42 @@
- import os
+#!/usr/bin/env python3
+
+import os
 import sys
 from pathlib import Path
 from openai import OpenAI
 
 print("=== VB → C# PIPELINE STARTED ===")
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-# Ensure file argument is provided
+# -----------------------------------
+# Validate Input
+# -----------------------------------
 if len(sys.argv) < 2:
     print("❌ No VB file provided")
+    print("Usage: python vb_to_csharp_pipeline.py <file.vb>")
     sys.exit(1)
 
 SRC_FILE = Path(sys.argv[1])
 
-# Output directory
+if not SRC_FILE.exists():
+    print(f"❌ File not found: {SRC_FILE}")
+    sys.exit(1)
+
+# -----------------------------------
+# Initialize OpenAI Client
+# -----------------------------------
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# -----------------------------------
+# Output Directory
+# -----------------------------------
 OUT_DIR = Path("cs_generated_v1")
 OUT_DIR.mkdir(exist_ok=True)
 
 print("Processing:", SRC_FILE)
 
-
-# -----------------------------
+# -----------------------------------
 # Conversion Function
-# -----------------------------
+# -----------------------------------
 def convert_vb_to_csharp(vb_code: str) -> str:
     prompt = f"""
 Convert the following VB.NET code line by line into C#.
@@ -48,33 +60,37 @@ VB.NET code:
 
     code = response.choices[0].message.content.strip()
 
-    # 🧹 Remove Markdown code fences if model adds them
+    # 🧹 Remove Markdown code fences if present
     if code.startswith("```"):
         code = code.replace("```csharp", "").replace("```", "").strip()
 
     return code
 
 
-# -----------------------------
+# -----------------------------------
 # Validation Function
-# -----------------------------
+# -----------------------------------
 def validate_csharp_file(file_path: Path):
-    if not file_path.exists() or file_path.stat().st_size == 0:
-        print("❌ Validation failed: file missing or empty")
+    if not file_path.exists():
+        print("❌ Validation failed: output file does not exist")
+        sys.exit(1)
+
+    if file_path.stat().st_size == 0:
+        print("❌ Validation failed: output file is empty")
         sys.exit(1)
 
     content = file_path.read_text(encoding="utf-8")
 
     if "```" in content:
-        print("❌ Validation failed: markdown formatting found")
+        print("❌ Validation failed: markdown formatting detected")
         sys.exit(1)
 
     print("✅ Validation passed for", file_path.name)
 
 
-# -----------------------------
-# Main Execution
-# -----------------------------
+# -----------------------------------
+# Main Pipeline
+# -----------------------------------
 try:
     # Read VB file
     vb_code = SRC_FILE.read_text(encoding="utf-8")
@@ -82,7 +98,7 @@ try:
     # Convert to C#
     csharp_code = convert_vb_to_csharp(vb_code)
 
-    # Write output file
+    # Write output
     output_file = OUT_DIR / (SRC_FILE.stem + ".cs")
     output_file.write_text(csharp_code, encoding="utf-8")
 
@@ -96,4 +112,3 @@ try:
 except Exception as e:
     print("❌ Pipeline failed:", str(e))
     sys.exit(1)
-    
