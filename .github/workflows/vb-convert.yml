@@ -18,11 +18,17 @@ jobs:
       GH_TOKEN: ${{ github.token }}
 
     steps:
+      # -----------------------------------
+      # Checkout Repo
+      # -----------------------------------
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0   # Required for git diff
 
+      # -----------------------------------
+      # Setup Python
+      # -----------------------------------
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -33,14 +39,18 @@ jobs:
           pip install --upgrade pip
           pip install openai pyyaml
 
-      # Detect only changed VB files
+      # -----------------------------------
+      # Detect Only Changed VB Files
+      # -----------------------------------
       - name: Detect Changed VB Files
         run: |
           git diff --name-only HEAD~1 HEAD | grep '^src/vb/.*\.vb$' > files.txt || true
           echo "Changed VB files:"
           cat files.txt
 
-      # Convert only changed files
+      # -----------------------------------
+      # Convert Only Changed Files
+      # -----------------------------------
       - name: Convert Only Changed Files
         run: |
           if [ ! -s files.txt ]; then
@@ -53,23 +63,30 @@ jobs:
             python scripts/vb_to_csharp_pipeline.py "$f"
           done < files.txt
 
-      # Setup .NET
+      # -----------------------------------
+      # Setup .NET for Compilation
+      # -----------------------------------
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      # Compile validation
+      # -----------------------------------
+      # Compile Validation
+      # -----------------------------------
       - name: Compile Generated C# Code
         run: |
           echo "Validating C# compilation..."
 
           dotnet new classlib -n CsValidation -o /tmp/cscheck
           cp -r cs_generated_v1/* /tmp/cscheck/
+
           cd /tmp/cscheck
           dotnet build
 
+      # -----------------------------------
       # Commit to cs_generated_v1
+      # -----------------------------------
       - name: Commit Generated C# Files
         run: |
           git config user.name "github-actions"
@@ -82,7 +99,9 @@ jobs:
           git commit -m "AI: Incremental VB → C# conversion (compiled)"
           git push origin cs_generated_v1 --force
 
-      # Create PR
+      # -----------------------------------
+      # Create Pull Request
+      # -----------------------------------
       - name: Create Pull Request
         run: |
           gh pr create \
