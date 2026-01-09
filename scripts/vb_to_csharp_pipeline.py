@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-#!/usr/bin/env python3
-
 import os
 import sys
 from pathlib import Path
@@ -49,6 +47,7 @@ Rules:
 - Preserve logic exactly
 - Do NOT include markdown formatting
 - Do NOT include ``` or language identifiers
+- Do NOT include explanations or comments outside code
 - Return ONLY valid C# code
 
 VB.NET code:
@@ -64,6 +63,7 @@ Rules:
 - Replace database commands with repository/service patterns where needed
 - Do NOT include markdown formatting
 - Do NOT include ``` or language identifiers
+- Do NOT include explanations or comments outside code
 - Return ONLY valid C# code
 
 Visual FoxPro code:
@@ -73,26 +73,41 @@ Visual FoxPro code:
         raise ValueError("Unsupported source file type")
 
 # -----------------------------------
-# Sanitize Markdown
+# Aggressive Sanitizer
 # -----------------------------------
 def sanitize_code(code: str) -> str:
     """
-    Remove markdown code fences and stray backticks.
+    Remove markdown, labels, and any text before the first valid C# token.
     """
-    lines = code.strip().splitlines()
+    # Remove all backticks
+    code = code.replace("```", "").strip()
 
-    # Remove starting fence
-    if lines and lines[0].strip().startswith("```"):
-        lines = lines[1:]
+    lines = code.splitlines()
+    cleaned_lines = []
 
-    # Remove ending fence
-    if lines and lines[-1].strip().startswith("```"):
-        lines = lines[:-1]
+    # Valid C# starting tokens
+    valid_starts = ("using ", "namespace ", "public ", "internal ", "class ", "struct ", "record ")
 
-    # Remove any remaining triple backticks in content
-    cleaned = "\n".join(line.replace("```", "") for line in lines).strip()
+    found_code = False
+    for line in lines:
+        line_strip = line.strip()
 
-    return cleaned
+        # Skip empty lines at top
+        if not found_code and not line_strip:
+            continue
+
+        # Start when we hit a valid C# token
+        if not found_code:
+            for token in valid_starts:
+                if line_strip.startswith(token):
+                    found_code = True
+                    break
+
+        if found_code:
+            cleaned_lines.append(line)
+
+    sanitized = "\n".join(cleaned_lines).strip()
+    return sanitized
 
 # -----------------------------------
 # Convert Source → C#
@@ -104,7 +119,7 @@ def convert_to_csharp(source_code: str, source_type: str) -> str:
         temperature=0,
     )
 
-    raw_code = response.choices[0].message.content.strip()
+    raw_code = response.choices[0].message.content
     clean_code = sanitize_code(raw_code)
 
     return clean_code
@@ -123,8 +138,9 @@ def validate_csharp_file(file_path: Path):
 
     content = file_path.read_text(encoding="utf-8")
 
-    if "```" in content:
-        print("❌ Validation failed: markdown formatting detected")
+    # Fail fast if still dirty
+    if "```" in content or content.lower().startswith("csharp") or content.lower().startswith("here"):
+        print("❌ Validation failed: invalid C# header detected")
         sys.exit(1)
 
     print("✅ Validation passed for", file_path.name)
@@ -167,4 +183,4 @@ try:
 
 except Exception as e:
     print("❌ Pipeline failed:", str(e))
-    sys.exit(1
+    sys.exit(1)
