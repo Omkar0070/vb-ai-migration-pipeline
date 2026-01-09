@@ -94,12 +94,10 @@ jobs:
           git push origin cs_generated_v1 --force
 
       # -----------------------------------
-      # Create Pull Request
-      # -----------------------------------
-      - name: Create Pull Request
+           - name: Create Pull Request
         run: |
           gh pr create \
             --base vb_banking_v1 \
             --head cs_generated_v1 \
             --title "AI: Legacy Code → C# Migration" \
-            --body "Automated incremental conversion of VB.NET and Visual FoxPro source files to C#."
+            --body "Automated incremental conversion of VB.NET and Visual FoxPro source files to C#." || echo "PR already exists"
