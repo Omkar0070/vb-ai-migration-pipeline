@@ -74,11 +74,16 @@ jobs:
       # -----------------------------------
       # Clean Markdown From Generated Files
       # -----------------------------------
-     - name: Clean Markdown From Generated C# Files
-  run: |
-    find cs_generated_v1 -name "*.cs" -type f -print0 | while IFS= read -r -d '' file; do
-      sed -i 's/```//g' "$file"
-    done
+      - name: Clean Markdown From Generated C# Files
+        run: |
+          echo "Removing markdown backticks from generated C# files..."
+          if [ -d "cs_generated_v1" ]; then
+            find cs_generated_v1 -name "*.cs" -type f -print0 | while IFS= read -r -d '' file; do
+              sed -i 's/```//g' "$file"
+            done
+          else
+            echo "No generated files found."
+          fi
 
       # -----------------------------------
       # Compile Validation
