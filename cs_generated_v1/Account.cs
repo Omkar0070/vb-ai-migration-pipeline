@@ -1,4 +1,4 @@
-```csharp
+csharp
 namespace Accounts
 {
     public class Account
@@ -23,4 +23,3 @@ namespace Accounts
         }
     }
 }
-```
