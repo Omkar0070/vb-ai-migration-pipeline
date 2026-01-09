@@ -18,11 +18,17 @@ jobs:
       GH_TOKEN: ${{ github.token }}
 
     steps:
+      # -----------------------------------
+      # Checkout Repo
+      # -----------------------------------
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # Needed for git diff
+          fetch-depth: 0   # Required for git diff
 
+      # -----------------------------------
+      # Setup Python
+      # -----------------------------------
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -34,7 +40,7 @@ jobs:
           pip install openai pyyaml
 
       # -----------------------------------
-      # Find only changed/new VB files
+      # Detect Only Changed VB Files
       # -----------------------------------
       - name: Detect Changed VB Files
         run: |
@@ -42,6 +48,9 @@ jobs:
           echo "Changed VB files:"
           cat files.txt
 
+      # -----------------------------------
+      # Convert Only Changed Files
+      # -----------------------------------
       - name: Convert Only Changed Files
         run: |
           if [ ! -s files.txt ]; then
@@ -55,7 +64,28 @@ jobs:
           done < files.txt
 
       # -----------------------------------
-      # Commit only if C# changed
+      # Setup .NET for Compilation
+      # -----------------------------------
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # -----------------------------------
+      # Compile Validation
+      # -----------------------------------
+      - name: Compile Generated C# Code
+        run: |
+          echo "Validating C# compilation..."
+
+          dotnet new classlib -n CsValidation -o /tmp/cscheck
+          cp -r cs_generated_v1/* /tmp/cscheck/
+
+          cd /tmp/cscheck
+          dotnet build
+
+      # -----------------------------------
+      # Commit to cs_generated_v1
       # -----------------------------------
       - name: Commit Generated C# Files
         run: |
@@ -66,7 +96,7 @@ jobs:
           git add cs_generated_v1
 
           git diff --cached --quiet && echo "No changes to commit" && exit 0
-          git commit -m "AI: Incremental VB → C# conversion"
+          git commit -m "AI: Incremental VB → C# conversion (compiled)"
           git push origin cs_generated_v1 --force
 
       # -----------------------------------
@@ -77,5 +107,5 @@ jobs:
           gh pr create \
             --base vb_banking_v1 \
             --head cs_generated_v1 \
-            --title "AI: Incremental VB → C# Conversion" \
-            --body "Automatically converted only modified VB files to C#"
+            --title "AI: VB → C# Conversion (Compiled)" \
+            --body "Automated incremental VB → C# conversion. Code compiled successfully before PR creation."
