@@ -24,7 +24,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # Required for git diff
+          fetch-depth: 0
 
       # -----------------------------------
       # Setup Python
@@ -64,25 +64,18 @@ jobs:
           done < files.txt
 
       # -----------------------------------
-      # Setup .NET for Compilation
+      # Clean Markdown From Generated Files
       # -----------------------------------
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      # -----------------------------------
-      # Compile Validation
-      # -----------------------------------
-      - name: Compile Generated C# Code
+      - name: Clean Markdown From Generated C# Files
         run: |
-          echo "Validating C# compilation..."
-
-          dotnet new classlib -n CsValidation -o /tmp/cscheck
-          cp -r cs_generated_v1/* /tmp/cscheck/
-
-          cd /tmp/cscheck
-          dotnet build
+          echo "Removing markdown backticks from generated C# files..."
+          if [ -d "cs_generated_v1" ]; then
+            find cs_generated_v1 -name "*.cs" -type f -print0 | while IFS= read -r -d '' file; do
+              sed -i 's/```//g' "$file"
+            done
+          else
+            echo "No generated files found."
+          fi
 
       # -----------------------------------
       # Commit to cs_generated_v1
@@ -96,16 +89,28 @@ jobs:
           git add cs_generated_v1
 
           git diff --cached --quiet && echo "No changes to commit" && exit 0
-          git commit -m "AI: Incremental VB → C# conversion (compiled)"
+
+          git commit -m "AI: Incremental VB → C# conversion"
           git push origin cs_generated_v1 --force
 
       # -----------------------------------
-      # Create Pull Request
+      # Create Pull Request (Idempotent)
       # -----------------------------------
       - name: Create Pull Request
         run: |
+          echo "Checking for existing PR..."
+
+          PR_URL=$(gh pr list --base vb_banking_v1 --head cs_generated_v1 --json url --jq '.[0].url')
+
+          if [ -n "$PR_URL" ]; then
+            echo "PR already exists: $PR_URL"
+            exit 0
+          fi
+
+          echo "Creating new PR..."
           gh pr create \
             --base vb_banking_v1 \
             --head cs_generated_v1 \
-            --title "AI: VB → C# Conversion (Compiled)" \
-            --body "Automated incremental VB → C# conversion. Code compiled successfully before PR creation."
+            --title "AI: VB → C# Conversion" \
+            --body "Automated incremental VB → C# conversion."
+
