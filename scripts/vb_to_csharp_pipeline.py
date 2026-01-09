@@ -5,14 +5,14 @@ import sys
 from pathlib import Path
 from openai import OpenAI
 
-print("=== MULTI-FORMAT → C# PIPELINE STARTED ===")
+print("=== VB → C# PIPELINE STARTED ===")
 
 # -----------------------------------
 # Validate Input
 # -----------------------------------
 if len(sys.argv) < 2:
-    print("❌ No source file provided")
-    print("Usage: python code_to_csharp_pipeline.py <source_file>")
+    print("❌ No VB file provided")
+    print("Usage: python vb_to_csharp_pipeline.py <file.vb>")
     sys.exit(1)
 
 SRC_FILE = Path(sys.argv[1])
@@ -35,11 +35,10 @@ OUT_DIR.mkdir(exist_ok=True)
 print("Processing:", SRC_FILE)
 
 # -----------------------------------
-# Prompt Builder
+# Conversion Function
 # -----------------------------------
-def build_prompt(code: str, file_type: str) -> str:
-    if file_type == "vb":
-        return f"""
+def convert_vb_to_csharp(vb_code: str) -> str:
+    prompt = f"""
 Convert the following VB.NET code line by line into C#.
 
 Rules:
@@ -47,85 +46,29 @@ Rules:
 - Preserve logic exactly
 - Do NOT include markdown formatting
 - Do NOT include ``` or language identifiers
-- Do NOT include explanations or comments outside code
 - Return ONLY valid C# code
 
 VB.NET code:
-{code}
+{vb_code}
 """
-    elif file_type == "fox":
-        return f"""
-Convert the following Visual FoxPro (VFP) code into modern C#.
 
-Rules:
-- Preserve business logic
-- Map FoxPro constructs to C# equivalents
-- Replace database commands with repository/service patterns where needed
-- Do NOT include markdown formatting
-- Do NOT include ``` or language identifiers
-- Do NOT include explanations or comments outside code
-- Return ONLY valid C# code
-
-Visual FoxPro code:
-{code}
-"""
-    else:
-        raise ValueError("Unsupported source file type")
-
-# -----------------------------------
-# Aggressive Sanitizer
-# -----------------------------------
-def sanitize_code(code: str) -> str:
-    """
-    Remove markdown, labels, and any text before the first valid C# token.
-    """
-    # Remove all backticks
-    code = code.replace("```", "").strip()
-
-    lines = code.splitlines()
-    cleaned_lines = []
-
-    # Valid C# starting tokens
-    valid_starts = ("using ", "namespace ", "public ", "internal ", "class ", "struct ", "record ")
-
-    found_code = False
-    for line in lines:
-        line_strip = line.strip()
-
-        # Skip empty lines at top
-        if not found_code and not line_strip:
-            continue
-
-        # Start when we hit a valid C# token
-        if not found_code:
-            for token in valid_starts:
-                if line_strip.startswith(token):
-                    found_code = True
-                    break
-
-        if found_code:
-            cleaned_lines.append(line)
-
-    sanitized = "\n".join(cleaned_lines).strip()
-    return sanitized
-
-# -----------------------------------
-# Convert Source → C#
-# -----------------------------------
-def convert_to_csharp(source_code: str, source_type: str) -> str:
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[{"role": "user", "content": build_prompt(source_code, source_type)}],
+        messages=[{"role": "user", "content": prompt}],
         temperature=0,
     )
 
-    raw_code = response.choices[0].message.content
-    clean_code = sanitize_code(raw_code)
+    code = response.choices[0].message.content.strip()
 
-    return clean_code
+    # 🧹 Remove Markdown code fences if present
+    if code.startswith("```"):
+        code = code.replace("```csharp", "").replace("```", "").strip()
+
+    return code
+
 
 # -----------------------------------
-# Validate Output
+# Validation Function
 # -----------------------------------
 def validate_csharp_file(file_path: Path):
     if not file_path.exists():
@@ -138,36 +81,27 @@ def validate_csharp_file(file_path: Path):
 
     content = file_path.read_text(encoding="utf-8")
 
-    # Fail fast if still dirty
-    if "```" in content or content.lower().startswith("csharp") or content.lower().startswith("here"):
-        print("❌ Validation failed: invalid C# header detected")
+    if "```" in content:
+        print("❌ Validation failed: markdown formatting detected")
         sys.exit(1)
 
     print("✅ Validation passed for", file_path.name)
+
 
 # -----------------------------------
 # Main Pipeline
 # -----------------------------------
 try:
-    ext = SRC_FILE.suffix.lower()
-
-    if ext == ".vb":
-        source_type = "vb"
-        relative_path = SRC_FILE.relative_to("src/vb")
-    elif ext == ".prg":
-        source_type = "fox"
-        relative_path = SRC_FILE.relative_to("src/fox")
-    else:
-        print(f"⚠ Skipping unsupported file type: {SRC_FILE}")
-        sys.exit(0)
-
-    # Read source file
-    source_code = SRC_FILE.read_text(encoding="utf-8")
+    # Read VB file
+    vb_code = SRC_FILE.read_text(encoding="utf-8")
 
     # Convert to C#
-    csharp_code = convert_to_csharp(source_code, source_type)
+    csharp_code = convert_vb_to_csharp(vb_code)
 
-    # Preserve folder structure
+    # -----------------------------------
+    # Preserve Folder Structure
+    # -----------------------------------
+    relative_path = SRC_FILE.relative_to("src/vb")
     output_file = OUT_DIR / relative_path.with_suffix(".cs")
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
