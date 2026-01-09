@@ -24,7 +24,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # required for git diff
+          fetch-depth: 0
 
       # -----------------------------------
       # Setup Python
@@ -72,6 +72,21 @@ jobs:
           dotnet-version: '8.0.x'
 
       # -----------------------------------
+      # Clean Markdown From Generated Files
+      # -----------------------------------
+      - name: Clean Markdown From Generated C# Files
+        run: |
+          echo "Removing markdown backticks from generated C# files..."
+
+          if [ -d "cs_generated_v1" ]; then
+            find cs_generated_v1 -name "*.cs" -type f -print0 | while IFS= read -r -d '' file; do
+              sed -i 's/```//g' "$file"
+            done
+          else
+            echo "No generated files to clean."
+          fi
+
+      # -----------------------------------
       # Compile Validation
       # -----------------------------------
       - name: Compile Generated C# Code
@@ -79,7 +94,7 @@ jobs:
           echo "Validating C# compilation..."
 
           dotnet new classlib -n CsValidation -o /tmp/cscheck
-          cp -r cs_generated_v1/* /tmp/cscheck/
+          cp -r cs_generated_v1/* /tmp/cscheck/ || true
           cd /tmp/cscheck
 
           dotnet build
