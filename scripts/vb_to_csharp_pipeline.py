@@ -98,8 +98,14 @@ try:
     # Convert to C#
     csharp_code = convert_vb_to_csharp(vb_code)
 
+    # -----------------------------------
+    # Preserve Folder Structure
+    # -----------------------------------
+    relative_path = SRC_FILE.relative_to("src/vb")
+    output_file = OUT_DIR / relative_path.with_suffix(".cs")
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
     # Write output
-    output_file = OUT_DIR / (SRC_FILE.stem + ".cs")
     output_file.write_text(csharp_code, encoding="utf-8")
 
     print("Generated:", output_file)
