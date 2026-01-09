@@ -94,7 +94,7 @@ jobs:
           git push origin cs_generated_v1 --force
 
       # -----------------------------------
-           - name: Create Pull Request
+      - name: Create Pull Request
         run: |
           gh pr create \
             --base vb_banking_v1 \
