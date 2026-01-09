@@ -1,4 +1,4 @@
-name: Legacy Code Conversion Pipeline
+name: VB Conversion Pipeline
 
 on:
   push:
@@ -18,68 +18,58 @@ jobs:
       GH_TOKEN: ${{ github.token }}
 
     steps:
-      # -----------------------------------
-      # Checkout Repository
-      # -----------------------------------
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # -----------------------------------
-      # Setup Python
-      # -----------------------------------
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: 3.11
 
-      - name: Install Python Dependencies
+      - name: Install Dependencies
         run: |
           pip install --upgrade pip
-          pip install openai
+          pip install openai pyyaml
 
-      # -----------------------------------
-      # Detect Changed VB + FoxPro Files
-      # -----------------------------------
-      - name: Detect Changed Source Files
+      # Detect only changed VB files
+      - name: Detect Changed VB Files
         run: |
-          git diff --name-only HEAD~1 HEAD | grep -E '^(src/vb/.*\.vb|src/fox/.*\.prg)$' > files.txt || true
-          echo "Changed source files:"
+          git diff --name-only HEAD~1 HEAD | grep '^src/vb/.*\.vb$' > files.txt || true
+          echo "Changed VB files:"
           cat files.txt
 
-      # -----------------------------------
-      # Convert Only Changed Files
-      # -----------------------------------
-      - name: Convert Changed Files
+      # Convert only changed files
+      - name: Convert Only Changed Files
         run: |
           if [ ! -s files.txt ]; then
-            echo "No convertible source files changed. Skipping conversion."
+            echo "No VB changes detected. Skipping conversion."
             exit 0
           fi
 
           while read f; do
             echo "Converting: $f"
-            python scripts/code_to_csharp_pipeline.py "$f"
+            python scripts/vb_to_csharp_pipeline.py "$f"
           done < files.txt
 
-      # -----------------------------------
-      # Clean Markdown From Generated Files
-      # -----------------------------------
-      - name: Clean Markdown From Generated C# Files
-        run: |
-          echo "Removing markdown backticks from generated C# files..."
-          if [ -d "cs_generated_v1" ]; then
-            find cs_generated_v1 -name "*.cs" -type f -print0 | while IFS= read -r -d '' file; do
-              sed -i 's/```//g' "$file"
-            done
-          else
-            echo "No generated files found."
-          fi
+      # Setup .NET
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
 
-      # -----------------------------------
-      # Commit to cs_generated_v1 Branch
-      # -----------------------------------
+      # Compile validation
+      - name: Compile Generated C# Code
+        run: |
+          echo "Validating C# compilation..."
+
+          dotnet new classlib -n CsValidation -o /tmp/cscheck
+          cp -r cs_generated_v1/* /tmp/cscheck/
+          cd /tmp/cscheck
+          dotnet build
+
+      # Commit to cs_generated_v1
       - name: Commit Generated C# Files
         run: |
           git config user.name "github-actions"
@@ -89,15 +79,14 @@ jobs:
           git add cs_generated_v1
 
           git diff --cached --quiet && echo "No changes to commit" && exit 0
-
-          git commit -m "AI: Convert legacy VB/FoxPro → C#"
+          git commit -m "AI: Incremental VB → C# conversion (compiled)"
           git push origin cs_generated_v1 --force
 
-      # -----------------------------------
+      # Create PR
       - name: Create Pull Request
         run: |
           gh pr create \
             --base vb_banking_v1 \
             --head cs_generated_v1 \
-            --title "AI: Legacy Code → C# Migration" \
-            --body "Automated incremental conversion of VB.NET and Visual FoxPro source files to C#." || echo "PR already exists"
+            --title "AI: VB → C# Conversion (Compiled)" \
+            --body "Automated incremental VB → C# conversion. Code compiled successfully before PR creation."
